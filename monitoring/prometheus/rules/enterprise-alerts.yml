@@ -1,0 +1,112 @@
+groups:
+  - name: enterprise_alerts
+    interval: 30s
+    rules:
+      # Service Health Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
+      
+      - alert: ServiceDegraded
+        expr: up == 1 and rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Service {{ $labels.job }} is degraded"
+          description: "Service {{ $labels.job }} has high error rate: {{ $value }}"
+      
+      # Performance Alerts
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s"
+      
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+            /
+          sum(rate(http_requests_total[5m])) by (job)
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+      
+      # Resource Alerts
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.job }}"
+          description: "CPU usage is {{ $value }}%"
+      
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 1024
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Memory usage is {{ $value }}MB"
+      
+      # Business Metrics
+      - alert: LowRequestVolume
+        expr: sum(rate(http_requests_total[5m])) * 60 < 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low request volume across all services"
+          description: "Only {{ $value }} requests per minute"
+      
+      - alert: PilotCustomerIssue
+        expr: pilot_customer_health_score < 70
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pilot customer {{ $labels.customer_id }} health declining"
+          description: "Health score is {{ $value }}/100"
+      
+      # SLA Alerts
+      - alert: SLABreach
+        expr: avg(up) * 100 < 99.99
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLA breach detected"
+          description: "Overall uptime is {{ $value }}%, below 99.99% SLA"
+      
+      # Data Monetization
+      - alert: BondMaturityAlert
+        expr: bond_days_to_maturity < 30
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Bond {{ $labels.bond_id }} maturing soon"
+          description: "{{ $value }} days until maturity"
+      
+      - alert: BondValueDecline
+        expr: rate(bond_current_value[1h]) < 0
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bond {{ $labels.bond_id }} value declining"
+          description: "Bond value change rate: {{ $value }}"
